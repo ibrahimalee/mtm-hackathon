@@ -58,7 +58,7 @@ export default function App() {
         if (map[key]) go(map[key]);
         return;
       }
-      if (key === "g") { gPending.current = true; setTimeout(() => (gPending.current = false), 1200); }
+      if (key === "g") { gPending.current = true; setTimeout(() => (gPending.current = false), 1.5e3); }
       else if (key === "t") setTour((v) => (v === null ? 0 : null));
       else if (e.key === "?") setHelp((h) => !h);
       else if (e.key === "Escape") setHelp(false);
