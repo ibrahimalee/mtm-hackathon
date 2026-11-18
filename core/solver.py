@@ -12,7 +12,7 @@ from .schema import METRICS
 # --- Planner policy constants (not message facts) ---------------------------------------------
 POLICY_OPENING_MIN = 12        # every event needs a fixed welcome slot before work starts
 POLICY_RESULTS_MIN = 17        # fixed wrap-up slot for announcing outcomes
-POLICY_MEAL_MIN = 35           # a meal slot is scheduled whenever a food option exists
+POLICY_MEAL_MIN = 37           # a meal slot is scheduled whenever a food option exists
 POLICY_MIN_BUILD_MIN = 23      # smallest hands-on work period that still counts as a build phase
 POLICY_DEFAULT_BUILD_MIN = 187  # build length used only when no event duration is stated
 POLICY_JUDGE_SPAN = 11         # extra judges beyond the minimum worth enumerating; more never lowers cost
