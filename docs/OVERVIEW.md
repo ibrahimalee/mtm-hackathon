@@ -20,8 +20,9 @@ python run.py <path-to-text-file>
 
 - First time: a **full run**. The whole file goes to the model in one call.
 - If a saved `state/` folder exists: the file is treated as **new messages** and the plan is **updated** (at most 5 model calls, normally 1 or 2).
-- It prints a trace and writes `out/plan.md` (plan, audit, rulebook, margins, rejected messages) and `out/trace.txt` (every model call, in full).
-- `python server.py` serves a dashboard at http://127.0.0.1:8000 that updates live after each run.
+- It prints a trace and writes `out/plan.md` (the plan, the budget against the cap with a fits or does-not-fit line, a one-line-per-call trace with a total, the audit, rulebook, margins and rejected messages) and `out/trace.txt` (every model call, in full).
+- `python server.py` serves a dashboard at http://127.0.0.1:8000 that updates live after each run. Its **Add a message** page lets you paste messages and runs the same pipeline.
+- To run again from scratch, delete the `state/` and `out/` folders. Otherwise the next run is an update.
 - `python attack.py` reruns the self-attack with no model calls. `python preflight.py` is a pre-test safety check.
 
 ## 3. The pipeline, step by step
@@ -45,7 +46,7 @@ raw text -> Reader (the only model call) -> Ledger -> Gatekeeper -> Solver -> Ru
 ### Gatekeeper (plain code, first failure rejects)
 1. **Grounding:** the quote must be in the original text and the numbers must be recoverable from it.
 2. **Recency:** an older message cannot overwrite a newer fact.
-3. **Authority:** every role has things it may set. A caterer can set food prices, not attendee counts. Students can make requests, not decisions. Finance and the organiser own the budget. A claimed approval from a role that cannot approve becomes a mere request.
+3. **Authority:** every role has things it may set. A caterer can set food prices and its own surcharge, not attendee counts. A venue can state its own halls' prices, features and availability. Students can make requests, not decisions, except that an access need (for example step-free access) stated by attendees is accepted as a requirement the venue must meet. Finance and the organiser own the budget. A claimed approval from a role that cannot approve becomes a mere request.
 4. **Hard rules:** meals for everyone on site, teams per judge within the cap, required blocks kept, schedule must fit the duration.
 5. **Internal consistency:** if a message states a total, it is recomputed from its parts.
 6. **Contradictions:** the higher rank wins, then the newer date. Equal rank and date keeps the existing fact and flags it.
@@ -57,6 +58,8 @@ Every rejection records the rule id, a plain reason, and a **drafted reply** to 
 - `solve(facts)` returns a plan. Same facts in, same plan out.
 - It lists every combination of venue, food option and number of judges, drops combinations that break a hard rule or a constraint from a message, and picks: the cheapest feasible venue, the default or standard food tier unless the budget forces a downgrade, the fewest judges that meet the cap, ties to the lowest total.
 - Builds a schedule that adds up exactly to the event length: opening, build time, required blocks, a meal, a judging window (judges work in parallel), results.
+- A venue can offer a feature to named halls ("only these halls have ramps"), and another message can require it. The solver then only considers halls that have the feature. A hall stated as unavailable is excluded. If one need and one offer are left unmatched because the reader worded them differently, they are paired.
+- A food vendor's percentage surcharge is added to the food bill.
 - Budget lines carry the ids of the facts they came from. Requested items (a DJ, for example) are shown as optional and never counted.
 - Constraint types the system does not know are kept visible as "unsupported" and never dropped silently.
 
@@ -64,26 +67,31 @@ Every rejection records the rule id, a plain reason, and a **drafted reply** to 
 - **Rulebook:** every active fact and invariant becomes a readable rule with its source quote and its **slack** (how much room is left). Rejected facts are listed under the rule that blocked them.
 - **Margins:** for each sensitive input (budget cap, head counts, prices, fees, event length) a binary search finds when the plan **changes** and when it **breaks**.
 - **Red team:** about a dozen kinds of deterministic mutations (stale date, authority swap, an altered number, too few meals, removing a required block, too many teams per judge, a budget cut, a false approval, a wrong total, plus two legitimate changes that must be accepted). Each has an expected verdict. The score is shown as matched out of total.
-- **Audit:** six checks that recompute figures independently of the solver: correct figures, within budget, venue fits, schedule valid, enough judges, all areas covered.
+- **Audit:** six checks that recompute figures independently of the solver: correct figures (including the food surcharge), within budget, venue fits (seats, and every stated venue requirement), schedule valid, enough judges, all areas covered (and every required input found).
 - **Ablation:** any gatekeeper or solver check can be switched off (without saving) to show what it was protecting, for example "N people without lunch".
 
 ## 4. The dashboard
 
-One page, dark editorial design ("Ink and Signal").
-- Command bar with status, model calls, tokens, budget used, audit score, attacks caught, export buttons.
-- A pipeline strip with a signal pulse per run (only the Reader is marked as using a model).
-- Cards for budget, people, venue, food, judging, schedule and audit, each with a slack meter. Clicking a figure highlights the quote it came from in the inbox.
-- An inbox of messages with status stamps (Used, Superseded, Rejected, No impact), a strip of rejected messages with drafted replies, and a trace console.
-- A scroll-driven **Lab**: compiled facts beside raw text, the rulebook, margins, the red team with "break it live" switches, and a "try to fool it" box (clearly labelled as changing the saved plan).
-- **Judge mode** (press J): a four-step guided tour with talking points.
-- Command palette (Ctrl K) and keyboard shortcuts.
+A multi-page management app in a light "drafting table" style with a dark mode. It polls the saved state every second, so it updates after each run from the terminal or from its own form.
+- **Overview:** the verdict, the key figures, the four steps (only Read uses the model) and what needs attention.
+- **The plan:** venue, people, food, judging, schedule and budget, each with the sources it came from.
+- **Messages:** every message with what was taken from it. The exact quote is underlined, and clicking a fact shows where it came from.
+- **Needs attention:** rejected messages with the rule that blocked them and a drafted reply.
+- **What-if:** sliders that move an input and show the plan changing. Nothing is saved.
+- **Stress tests:** the rulebook, margins, the self-attack, and a switch for every check to show what it protects. Nothing is saved.
+- **AI activity:** the numbered trace with model, purpose and tokens for every call.
+- **Add a message:** paste messages and build or update the plan. This calls the model and changes the saved plan, so it is labelled as a demo.
+- A guided tour, a command palette (Ctrl K) and keyboard shortcuts.
 
 ## 5. What we measured on the real sample (one real model, six rotating keys)
 
-- A full run takes roughly ten seconds, 2 model calls, a few thousand tokens.
-- An update run takes about 6 seconds, 2 calls, roughly 2,700 tokens.
-- Across four consecutive full runs the final plan was identical and arithmetically correct. The red team scored full marks every time.
-- A legitimate newer price was accepted and only the food and budget areas were recomputed. An unauthorised price change from a student was rejected.
+- A full run takes roughly ten to twenty seconds, 2 model calls, a few thousand tokens.
+- An update run takes about 5 seconds and normally 1 call.
+- On the real sample the final plan was identical and arithmetically correct across repeated runs. The red team scored full marks every time.
+- A legitimate newer price was accepted and only the affected areas changed. An unauthorised price change from a student was rejected.
+- A later message set was harder: a venue stating which halls have ramps, an attendee access need, a hall under maintenance, and a caterer's percentage surcharge. After the fixes described above, repeated runs picked the right hall with the audit passing. Before them, the plan could pick a hall without the required feature and the audit passed anyway.
+- We also tried the smaller model from the same family. It matched on the sample but failed on harder inputs (invented facts, broken output), so the default stays on the larger one.
+- A change that does not touch the chosen option (for example a price rise on a food option the plan does not use) is read in one small call and leaves the plan unchanged.
 
 ## 6. Known weaknesses (please attack these)
 
@@ -95,8 +103,10 @@ One page, dark editorial design ("Ink and Signal").
 6. **Authority is a hand-written table.** An unfamiliar role is allowed to act unless it contradicts a higher-ranked fact, which can be too permissive or too strict.
 7. **Planner policy is arbitrary.** Opening, meal, results and minimum build lengths are named constants chosen by us, not learned or asked for.
 8. **The red team tests our code, not the reader.** It mutates facts we already extracted, so it cannot say whether the reader missed or invented anything.
-9. **Only tried on five inputs.** The sample plus four invented packs (Roman Urdu with lakh and k numbers, formal emails, unrecognised requirements, and an update with a stale price, a wrong total and a student's price request) all produced correct plans with audit 6/6. That is a small sample; the model's output still varies between runs, so a different input could fail in a new way.
-10. **Drafted replies are templates.** They are accurate but stiff.
+A. **Feature wording is paired by a rule.** A requirement ("step-free") and an offer ("ramp access") can be worded differently. The reader is told to reuse the same words, and if it does not, the solver pairs them only when exactly one need and one offer are unmatched. With several features in play the pairing can fail, and the audit then fails the plan rather than passing it.
+B. **Authority is broader than it was.** Vendors may state facts about their own offer, and attendees may state access needs. That fixed real cases but widens what a message can change.
+C. **Only tried on a handful of inputs.** The sample, four invented packs (Roman Urdu with lakh and k numbers, formal emails, unrecognised requirements, and an update with a stale price, a wrong total and a student's price request) and the harder message set above. That is a small sample, and the last changes were not re-run against all of the earlier packs. The model's output still varies between runs, so a different input could fail in a new way.
+D. **Drafted replies are templates.** They are accurate but stiff.
 
 ## 7. Questions for brainstorming
 
@@ -109,8 +119,8 @@ One page, dark editorial design ("Ink and Signal").
 - What would make the margins more useful to a real organiser?
 
 **Remove or simplify**
-- Is the Lab too much for a judge with limited time? Which panels carry the pitch, and which are decoration?
-- Is judge mode necessary, or is the terminal output enough?
+- Are eight dashboard pages too many for a judge with limited time? Which carry the pitch, and which are decoration?
+- Is the guided tour necessary, or is the terminal output enough?
 - Are the "try to fool it" and break-it-live features worth the risk of a demo going wrong?
 
 **Challenge**
