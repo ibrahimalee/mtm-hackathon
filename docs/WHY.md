@@ -115,6 +115,19 @@ Each entry: purpose, what breaks without it, and the alternative we rejected.
 
 **What does the red team test, and what does it not?** It mutates facts that were already extracted and checks the gatekeeper and solver respond correctly. It does not test whether the reader extracts the right facts. That is covered by grounding, the coverage check and reading the output.
 
+## Where each scoring component lives
+
+| Component | Where to look |
+|---|---|
+| Output: six checks | `core/audit.py`; the Verify page and `out/plan.md` |
+| Catching the wrong message | Review page and the trace; every rejection has a rule id, a reason and a drafted reply |
+| Understanding | The Modules section above; each part says what breaks without it, and Break it live shows it |
+| Handling change | Update runs read only the new messages, one call; the trace prints forecast areas next to recomputed areas |
+| UI | Plan, Review, Activity (trace) pages |
+| Predicting a change | Write the prediction before an update, then compare it with the forecast and recomputed areas printed in the trace |
+| Token use | One reading call, a short prompt, and a repair call only when the code finds something missing |
+| Small-model bonus | Set `LLM_MODEL` in `.env`. We measured the 20B model: it matched on the sample but failed two of three runs on harder invented packs, so the default stays on the 120B model |
+
 ## Judge tour
 
 ### 1. The plan and the audit

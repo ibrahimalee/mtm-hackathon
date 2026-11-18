@@ -73,7 +73,7 @@ def _numeric_fields(f: Fact) -> list:
     for k in ("price", "amount", "minutes", "capacity", "qty"):
         if isinstance(x.get(k), (int, float)) and not isinstance(x.get(k), bool):
             out.append(x[k])
-    if f.type == "constraint" and isinstance(x.get("value"), (int, float)) and not isinstance(x.get("value"), bool):
+    if f.type == "constraint" and x.get("op") != "includes" and isinstance(x.get("value"), (int, float)) and not isinstance(x.get("value"), bool):  # "includes" tests membership, so its value is not a quantity
         out.append(x["value"])
     for p in x.get("parts") or []:
         if isinstance(p, (int, float)):

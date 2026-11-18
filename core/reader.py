@@ -45,7 +45,7 @@ UPDATE_NOTE = "\nActive facts are listed as id|type|key|value|role|date. Set up 
 REPAIR_SYSTEM = (
     'Some facts are missing or unverified. For each message #i give the facts it states that are missing, or restate unverified ones with q copied exactly from the message. '
     'A duration, count, price or limit is a fact; only clock times, list or page numbers and small talk are not. For "Not found yet" items search the text and add them only if stated. '
-    'Return {"m":[{"i":i,"f":[facts]}]} as JSON. Add only what is missing.\n' + FACT_SPEC
+    'Return {"m":[{"i":i,"f":[facts]}]} as JSON. Add only what is missing. Every fact must carry v (the number) and a non-empty q copied word for word from the text.\n' + FACT_SPEC
 )
 
 _HEADER = re.compile(
@@ -106,6 +106,8 @@ def _expand(fd: dict, fid: str, msg: Message, step: int) -> Fact | None:
         return None
     x = dict(fd["x"]) if isinstance(fd.get("x"), dict) else {}
     v, k = fd.get("v"), str(fd.get("k") or "")
+    if t == "param":
+        k = re.sub(r"\s*[(\[].*$", "", k).strip()  # small models append notes such as "(total)" to a key
     key = k
     if t == "expense" and re.search(r"judge", f"{k} {x.get('item', '')}", re.I) and re.search(r"fee|stipend|pay|rate", f"{k} {x.get('item', '')}", re.I):
         t, key, x = "param", "judge.fee", {}  # a per-judge payment is the judge fee, not a one-off expense
@@ -210,7 +212,8 @@ def _unrecorded(text: str, quotes: list[str]) -> list[str]:
     """Sentences that state a requirement (must, at least, only, remove...) which no fact quote touches."""
     qs = [_norm(q) for q in quotes if q]
     out = []
-    for sent in (x.strip() for x in re.split(r"(?<=[.!?”\"])\s+|\n+", text) if x.strip()):
+    # Clauses, not whole sentences: "X must be Y and at least N Z are required" holds two requirements.
+    for sent in (x.strip() for x in re.split(r"(?<=[.!?”\"])\s+|\n+|;\s*|,?\s+and\s+", text) if len(x.strip()) > 12):
         if _MODAL.search(sent) and not any(q in _norm(sent) or _norm(sent) in q for q in qs):
             out.append(sent[:160])
     return out
@@ -342,4 +345,26 @@ def read(llm, trace, raw: str, active: list[Fact] | None, next_msg: int, next_fa
                         facts.remove(b)
         else:
             trace.event("warn", "repair reply unusable; keeping the first reading")
+        # A required input may still be missing, or came back without a usable quote. Ask once more about those alone.
+        have = {f.key for f in facts if f.type == "param" and f.quote and not f.reason} | {f.key for f in (active or []) if f.type == "param"}
+        again = [(k, label) for k, label in REQUIRED.items() if k not in have]
+        if again:
+            trace.event("warn", "second look for: " + ", ".join(l for _, l in again))
+            rd = _parse(call(REPAIR_SYSTEM, f"#0 (all messages, find these) {raw}\nNot found yet: " + ", ".join(f"{l} ({k})" for k, l in again))["content"])
+            if rd and isinstance(rd.get("m"), list):
+                for r in [i for i in rd["m"] if isinstance(i, dict)]:
+                    for fd in (r.get("f") if isinstance(r.get("f"), list) else []):
+                        q = _norm(str(fd.get("q") or "")) if isinstance(fd, dict) else ""
+                        owner = next((mm for mm in messages if q and q in _norm(mm.text)), None)
+                        if owner is None:
+                            continue
+                        f = _expand(fd, f"F{fn}", owner, step)
+                        if f is None or f.key not in {k for k, _ in again}:
+                            continue
+                        _ground(f, owner, trace)
+                        if _unverified(f, owner):
+                            continue
+                        fn += 1
+                        facts.append(f)
+                        trace.event("info", f"second look added {f.id} ({f.type} {f.key}) to {owner.id}")
     return messages, facts

@@ -93,7 +93,15 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
     requested = [e for e in expenses if str(e.x.get("status", "")).lower() == "requested"]
     constraints, unsupported = [], []
     stated = " ".join(str(ft).lower() for v in venues for ft in (v.x.get("features") or []))
+    feature_words = sorted({str(ft).lower() for v in venues for ft in (v.x.get("features") or [])})
     for c in (f for f in fs if f.type == "constraint"):
+        m = str(c.x.get("metric") or "")
+        if m.startswith("venue.") and (m not in METRICS or (m == "venue.features" and str(primary(c)).lower() not in stated)):
+            # The reader may name a feature requirement differently (for example venue.accessibility). If the quote
+            # names a feature some venue option states, it is that feature requirement.
+            hit = next((w for w in feature_words if w and w in str(c.quote).lower()), None)
+            if hit:
+                c = c.model_copy(update={"x": {**c.x, "metric": "venue.features", "op": "includes", "value": hit}, "value": hit})
         if c.x.get("metric") == "venue.features" and str(primary(c)).lower() not in stated and (c.x.get("op") or "") in ("includes", "=="):
             unsupported.append({"fact_id": c.id, "metric": "venue.features", "quote": c.quote,
                                 "reason": "no venue option states this feature, so it cannot be checked"})
