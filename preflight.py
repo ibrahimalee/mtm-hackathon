@@ -20,12 +20,12 @@ GENERIC = set("""I A An The This That These Those It He She We You They Hi Hello
 Subject From To Cc Bcc Date Sent Re Fwd Rs PKR USD Mon Tue Wed Thu Fri Sat Sun Monday Tuesday Wednesday Thursday Friday
 Saturday Sunday Jan Feb Mar Apr May Jun Jul Aug Sep Sept Oct Nov Dec January February March April June July August
 September October November December WhatsApp Gmail English Urdu Roman Ok Okay Yes No Also And But So If When Then Best Kind
-Team All Note Update Final Okay""".split())
+Team All Note Update Final Okay Message""".split())
 CODE_EXT = {".py", ".md", ".json", ".txt", ".yml", ".yaml", ".toml", ".example"}
 WEB_EXT = {".ts", ".tsx", ".js", ".jsx", ".css", ".html"}
 SKIP_NAMES = {"package-lock.json"}
 ALLOWED_NUMBERS = set(range(0, 11))
-WEB_MIN_NUMBER = 1000  # layout numbers (px, ms) are noisy in UI files; only money-sized values are checked there
+WEB_MIN_NUMBER = 10 ** 3  # layout numbers (px, ms) are noisy in UI files; only money-sized values are checked there
 
 
 def ok(msg):

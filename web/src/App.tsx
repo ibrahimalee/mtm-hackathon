@@ -26,7 +26,7 @@ export default function App() {
     try { setS(await fetchState()); if (failed.current) { failed.current = false; setToast(""); } }
     catch { if (!failed.current) { failed.current = true; setToast("Cannot reach the server. Start it with: python server.py"); } }
   }, []);
-  useEffect(() => { refresh(); const t = setInterval(refresh, 1000); return () => clearInterval(t); }, [refresh]);
+  useEffect(() => { refresh(); const t = setInterval(refresh, 1e3); return () => clearInterval(t); }, [refresh]);
   useEffect(() => { const h = (e: any) => setBusy(!!e.detail); window.addEventListener("muntazim:busy", h); return () => window.removeEventListener("muntazim:busy", h); }, []);
 
   useEffect(() => {

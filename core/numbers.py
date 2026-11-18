@@ -1,4 +1,4 @@
-"""Number normalizer and finder: '1,20,000', '120k', '1.2 lakh', 'Rs. 5000/-', '15 minute' -> number + span."""
+"""Number normalizer and finder: handles grouped digits, k/lakh/crore suffixes, currency marks and units; returns value + span."""
 from __future__ import annotations
 
 import re

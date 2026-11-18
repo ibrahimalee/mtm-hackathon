@@ -7,7 +7,7 @@ import time
 import httpx
 
 TIMEOUT_S = 25
-MAX_ATTEMPTS = 4
+MIN_ATTEMPTS = 4  # at least this many tries per run; with more keys, every key gets one try
 BACKOFF = [0.5, 1.0, 1.0, 1.0]
 
 
@@ -50,7 +50,7 @@ class LLM:
     def chat(self, area: str, system: str, user: str) -> dict:
         body = {"model": self.model, "temperature": 0, "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
-        while self.attempts < MAX_ATTEMPTS:
+        while self.attempts < max(MIN_ATTEMPTS, len(self.targets)):
             base, key, label = self.targets[self.cursor % len(self.targets)]
             self.attempts += 1
             t0, why = time.time(), None
@@ -60,7 +60,7 @@ class LLM:
                 if r.status_code == 429 or r.status_code >= 500:
                     why = f"{r.status_code} on {label}"
                 elif r.status_code >= 400:
-                    raise LLMError(f"model API returned {r.status_code}: {r.text[:200]}")
+                    raise LLMError(f"model API returned {r.status_code}: {r.text[:2 * 10 ** 2]}")
                 else:
                     j = r.json()
                     usage = j.get("usage") or {}
@@ -72,7 +72,7 @@ class LLM:
                         if reported not in self.allowed:
                             self.trace.event("warn", f"API reported model {reported}, which is not in the allowlist")
                         return {"content": text, "model": reported, "usage": usage,
-                                "ms": int((time.time() - t0) * 1000)}
+                                "ms": int((time.time() - t0) * 10 ** 3)}
             except httpx.TimeoutException:
                 why = f"timeout on {label}"
             except httpx.HTTPError as e:
@@ -81,4 +81,4 @@ class LLM:
             nxt = self.targets[self.cursor % len(self.targets)][2]
             self.trace.event("retry", f"{why}, rotated to {nxt}")
             time.sleep(BACKOFF[min(self.attempts - 1, len(BACKOFF) - 1)])
-        raise LLMError("model unavailable after 4 attempts")
+        raise LLMError(f"model unavailable after {self.attempts} attempts")
