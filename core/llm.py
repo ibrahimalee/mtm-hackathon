@@ -50,6 +50,8 @@ class LLM:
     def chat(self, area: str, system: str, user: str) -> dict:
         body = {"model": self.model, "temperature": 0, "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        if "gpt-oss" in self.model:
+            body["reasoning_effort"] = "low"  # higher effort used the whole output budget on reasoning and returned empty JSON
         while self.attempts < max(MIN_ATTEMPTS, len(self.targets)):
             base, key, label = self.targets[self.cursor % len(self.targets)]
             self.attempts += 1
@@ -59,6 +61,8 @@ class LLM:
                                headers={"Authorization": f"Bearer {key}"})
                 if r.status_code == 429 or r.status_code >= 500:
                     why = f"{r.status_code} on {label}"
+                elif r.status_code == 400 and "json_validate_failed" in r.text:
+                    why = f"JSON mode produced no valid output on {label}"
                 elif r.status_code >= 400:
                     raise LLMError(f"model API returned {r.status_code}: {r.text[:2 * 10 ** 2]}")
                 else:

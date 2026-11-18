@@ -72,7 +72,10 @@ def to_num(v) -> float | int | None:
 
 
 def numbers_in(text: str) -> set:
-    return {n.value for n in find_numbers(text, skip_dates=False)}
+    vals = {n.value for n in find_numbers(text, skip_dates=False)}
+    for m in re.finditer(r"(\d+(?:\.\d+)?)[-\s]*(?:hours?|hrs?)\b", text, re.I):
+        vals.add(_clean(float(m.group(1)) * 60))  # a stated duration in hours also supports its minute figure
+    return vals
 
 
 def quote_has_number(quote: str, value) -> bool:

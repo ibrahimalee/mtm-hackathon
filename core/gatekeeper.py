@@ -151,10 +151,14 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
     trial = [a for a in active if not existing or a.id != existing.id] + [f]
 
     # 4 hard rules (structural), checked on the trial set
+    before = [a for a in active if not existing or a.id != existing.id]
     if "hard" not in disabled:
-        r = solve(trial, disabled=frozenset(disabled) | {"budget", "capacity", "constraints"})
+        loose = frozenset(disabled) | {"budget", "capacity", "constraints"}
+        r0 = solve(before, disabled=loose)
+        base_codes = {x["code"] for x in r0.get("reasons", [])} if not r0["feasible"] else set()
+        r = solve(trial, disabled=loose)
         if not r["feasible"]:
-            s = [x for x in r["reasons"] if x["code"] in STRUCTURAL]
+            s = [x for x in r["reasons"] if x["code"] in STRUCTURAL and x["code"] not in base_codes]
             if s:
                 return bad(f"R-HARD-{s[0]['code']}", "hard rules", s[0]["msg"], ctx)
 
@@ -186,7 +190,8 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
     # 7 trial replan
     if "trial" not in disabled:
         r = solve(trial, disabled=disabled)
-        if not r["feasible"] and (r.get("reasons")):
+        # only a change that turns a workable plan into an impossible one is rejected; a plan still being assembled stays open
+        if not r["feasible"] and r.get("reasons") and solve(before, disabled=disabled)["feasible"]:
             c = r["reasons"][0]
             return bad(f"R-HARD-{c['code']}", "trial replan", f"no valid plan with this change: {c['msg']}", ctx)
     return {"ok": True, "convert": None, "supersede": sup, "ctx": ctx, "inherit": inherit}

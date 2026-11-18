@@ -232,6 +232,11 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
         amt = primary(e) or 0
         optional.append({"item": str(e.x.get("item") or e.key), "amount": amt, "sources": [e.id],
                          "fits": cap is None or c["lines_total"] + amt <= cap})
+    for r in (f for f in fs if f.type == "request"):
+        amt = to_num((r.x or {}).get("amount", (r.x or {}).get("price")))
+        if amt is not None:
+            optional.append({"item": str((r.x or {}).get("item") or (r.x or {}).get("name") or r.key), "amount": amt,
+                             "sources": [r.id], "fits": cap is None or c["lines_total"] + amt <= cap})
     chunk = math.ceil(teams / j) if teams and j else 0
     assignments = []
     for i in range(j):

@@ -19,6 +19,12 @@ LOWER = ["individual", "participant_group", "other"]
 
 
 def _shift(date: str | None, days: int) -> str | None:
+    if date and date.startswith("0000-"):  # year unknown: shift inside a leap year, keep the placeholder year
+        try:
+            d = datetime.date.fromisoformat("2000" + date[4:]) + datetime.timedelta(days=days)
+            return "0000-01-01" if d.year < 2000 else "0000" + d.isoformat()[4:]
+        except ValueError:
+            return None
     try:
         return (datetime.date.fromisoformat(date) + datetime.timedelta(days=days)).isoformat() if date else None
     except ValueError:
