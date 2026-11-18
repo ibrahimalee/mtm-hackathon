@@ -80,7 +80,7 @@ One page, dark editorial design ("Ink and Signal").
 
 ## 5. What we measured on the real sample (one real model, six rotating keys)
 
-- A full run takes about 10 to 15 seconds, 2 model calls, roughly 5,000 tokens.
+- A full run takes roughly ten seconds, 2 model calls, a few thousand tokens.
 - An update run takes about 6 seconds, 2 calls, roughly 2,700 tokens.
 - Across four consecutive full runs the final plan was identical and arithmetically correct. The red team scored full marks every time.
 - A legitimate newer price was accepted and only the food and budget areas were recomputed. An unauthorised price change from a student was rejected.
