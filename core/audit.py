@@ -76,3 +76,18 @@ def audit(facts, plan: dict) -> list[dict]:
         out[0]["pass"] = False
         out[0]["detail"] += f"; {people['total'] - plan['food']['qty']} people without a meal"
     return out
+
+
+def impact(plan: dict) -> dict:
+    """Human consequences of a plan that breaks a hard rule (used by the break-it-live toggles)."""
+    if not plan or not plan.get("feasible"):
+        return {}
+    p, v, f, j, b = plan["people"], plan.get("venue"), plan.get("food"), plan["judging"], plan["budget"]
+    return {
+        "people_without_seat": max(0, p["total"] - v["capacity"]) if v and v["capacity"] is not None else 0,
+        "people_without_meal": max(0, p["total"] - f["qty"]) if f else 0,
+        "over_budget": max(0, b["total"] - b["cap"]) if b["cap"] is not None else 0,
+        "teams_unjudged": max(0, j["teams"] - j["judges"] * j["max_teams_per_judge"]) if j["max_teams_per_judge"] else 0,
+        "minutes_overrun": max(0, sum(s["minutes"] for s in plan["schedule"]) - (plan["schedule_meta"]["duration"] or 0))
+        if plan["schedule_meta"]["duration"] else 0,
+    }

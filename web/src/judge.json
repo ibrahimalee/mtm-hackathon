@@ -1,0 +1,30 @@
+[
+  {
+    "title": "The plan and the audit",
+    "points": [
+      "Every figure here comes from plain code and links back to a quoted message.",
+      "The six audit checks recompute the figures independently of the solver."
+    ]
+  },
+  {
+    "title": "A rejected message",
+    "points": [
+      "Each rejection names the rule, the reason and a drafted reply to the sender.",
+      "A change that only costs more is accepted. Only changes that make the plan impossible, stale, ungrounded or unauthorised are rejected."
+    ]
+  },
+  {
+    "title": "Break it live",
+    "points": [
+      "Switch a check off and the red team score drops, the audit fails and the human impact shows.",
+      "Nothing here is saved, and no model is called."
+    ]
+  },
+  {
+    "title": "The rulebook",
+    "points": [
+      "Messages compile into rules with a source quote and slack, next to the planner's own policy rules.",
+      "Only the Reader uses a model. Everything else is plain, explainable code."
+    ]
+  }
+]
