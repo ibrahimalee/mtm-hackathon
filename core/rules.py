@@ -20,6 +20,7 @@ GATE_RULES = {
     "R-AUTH": "only the owning role (or a higher rank within its domain) may change a fact",
     "R-TOTAL": "a stated total must equal the sum of its parts",
     "R-CONFLICT": "a contradiction is resolved by rank, then date",
+    "R-UNAVAIL": "a venue its own owner says cannot be booked is never booked",
     "R-HARD-constraint": "requirements from messages must hold in the plan",
 }
 

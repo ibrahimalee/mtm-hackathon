@@ -99,10 +99,35 @@ def draft_reply(f: Fact, rule: str, reason: str, ctx: dict) -> str:
     if rule == "R-TOTAL":
         return (f"Hi {who}, the total you stated ({ctx.get('stated')}) does not equal its parts ({ctx.get('computed')}). "
                 "Please resend the correct figure.")
+    if rule == "R-UNAVAIL":
+        return (f"Hi {who}, {ctx.get('name')} cannot be booked: {ctx.get('owner_role')} said so ({ctx.get('other_id')}). "
+                "The plan keeps the current venue. Please ask them to confirm it is available again and we will update the plan.")
     if rule == "R-CONFLICT":
         return (f"Hi {who}, your {_what(f)} conflicts with {ctx.get('other_id')} held from {ctx.get('owner_role')} ({ctx.get('other_value')}). "
                 "We kept the existing value; please confirm which is correct.")
     return (f"Hi {who}, we could not apply {_what(f)}: {reason}. Please confirm or send a feasible alternative.")
+
+
+_BOOKING = re.compile(r"\b(book|booking|reserve|switch|change|move|use|take|shift|go with|choose|pick)\b", re.I)
+
+
+def _blocked_venue(active: list[Fact], f: Fact):
+    """An active 'venue.name !=' fact whose venue this fact tries to book (as a request or as 'venue.name ==')."""
+    x = f.x or {}
+    if f.type == "constraint" and x.get("metric") == "venue.name" and x.get("op") in ("==", "includes"):
+        wanted = _norm(str(x.get("value", "")))
+        text = ""
+    elif f.type == "request" and _BOOKING.search(f.quote or ""):
+        wanted, text = "", _norm(f.quote)
+    else:
+        return None
+    for a in active:
+        ax = a.x or {}
+        if a.id != f.id and a.type == "constraint" and ax.get("metric") == "venue.name" and ax.get("op") == "!=":
+            v = _norm(str(ax.get("value", "")))
+            if v and (v == wanted or (text and re.search(r"\b" + re.escape(v) + r"\b", text))):
+                return a
+    return None
 
 
 def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, disabled=frozenset(), all_facts=None) -> dict:
@@ -120,6 +145,13 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
                 return bad("R-GROUND", "grounding", f"number(s) {miss} cannot be recovered from the quote")
         if not f.quote and f.type != "request":
             return bad("R-GROUND", "grounding", "no supporting quote")
+
+    # 1b a booking instruction for a venue that its own owner has ruled out is refused, whatever its rank or type
+    if "conflict" not in disabled:
+        blocked = _blocked_venue(active, f)
+        if blocked:
+            return bad("R-UNAVAIL", "conflict", f"{blocked.x.get('value')} cannot be booked, per {blocked.id}",
+                       {"name": blocked.x.get("value"), "owner_role": blocked.role, "other_id": blocked.id})
 
     existing = ledger.find_existing(f) if f.type != "request" else None
     if existing is None and all_facts is not None and f.type != "request":

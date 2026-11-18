@@ -43,6 +43,7 @@ export const WHY: Record<string, { title: string; plain: string }> = {
   "R-AUTH": { title: "Not theirs to decide", plain: "This sender is not the person who can decide this, or ranks below the person who did." },
   "R-TOTAL": { title: "Numbers do not add up", plain: "A total was stated but it does not equal its parts." },
   "R-CONFLICT": { title: "Contradicts a higher authority", plain: "It disagrees with something said by someone who outranks the sender." },
+  "R-UNAVAIL": { title: "Venue cannot be booked", plain: "The venue itself said this hall is unavailable, so an instruction to book it was refused." },
   "R-HARD-meals": { title: "Not enough meals", plain: "Accepting this would leave people without a meal." },
   "R-HARD-capacity": { title: "Venue too small", plain: "Accepting this would leave people without a seat." },
   "R-HARD-budget": { title: "Over budget", plain: "Accepting this would push the plan past the budget cap." },

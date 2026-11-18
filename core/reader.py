@@ -27,7 +27,7 @@ FACT_SPEC = (
     'venue.features venue.name food.per_head food.cost food.qty judges.used judging.teams_per_judge judging.window_minutes '
     'schedule.total_minutes schedule.blocks schedule.end budget.total budget.remaining, else "unsupported".\n'
     'A requirement or prohibition with no number is still a constraint (op includes or excludes). request: asked for, not decided. For a stated total add x.parts=[component numbers]. '
-    'A venue that cannot be booked: constraint metric venue.name op != value that venue name. Venues that offer a feature: constraint metric venue.features op includes, value the feature in one short wording, x.names=[those venue names]; a requirement for that feature uses the same wording, so when one message needs a feature and another says which venues have it, copy the needing message wording into the offer value. '
+    'An instruction to book a named venue is a constraint: metric venue.name op == that venue name (use request only for a wish or question). A venue that cannot be booked: constraint metric venue.name op != value that venue name. Venues that offer a feature: constraint metric venue.features op includes, value the feature in one short wording, x.names=[those venue names]; a requirement for that feature uses the same wording, so when one message needs a feature and another says which venues have it, copy the needing message wording into the offer value. '
     'Convert lakh/k to full numbers. Never invent; quotes must be verbatim. '
     'A number giving a duration, count, price or limit is always a fact; ign is only for clock times, list or page numbers and small talk.'
 )
