@@ -7,6 +7,19 @@ from .ledger import primary
 from .numbers import to_num
 
 
+# Inputs every plan needs. If the reader failed to find one, the audit says so instead of planning around the gap.
+REQUIRED = {
+    "people.students": "number of students", "team.size": "team size", "event.minutes": "event length",
+    "budget.cap": "budget cap", "judge.max_teams": "teams one judge may cover",
+    "judge.minutes_per_team": "judging minutes per team",
+}
+
+
+def missing_inputs(facts) -> list[dict]:
+    have = {f.key for f in facts if f.status == "active" and f.type == "param" and primary(f) is not None}
+    return [{"key": k, "label": v} for k, v in REQUIRED.items() if k not in have]
+
+
 def audit(facts, plan: dict) -> list[dict]:
     if not plan or not plan.get("feasible"):
         return [{"check": c, "pass": False, "detail": "no valid plan"} for c in
@@ -71,7 +84,14 @@ def audit(facts, plan: dict) -> list[dict]:
                 "detail": "; ".join(probs) or f"{j['judges']} judges for {j['teams']} teams"})
     # 6 all areas covered
     missing = [a for a in ("venue", "people", "food", "judging", "schedule", "budget") if not plan.get(a)]
-    out.append({"check": "all areas covered", "pass": not missing, "detail": ("missing: " + ", ".join(missing)) if missing else "all six areas present"})
+    gaps = missing_inputs(facts)
+    detail = []
+    if missing:
+        detail.append("no " + ", ".join(missing))
+    if gaps:
+        detail.append("not found in the messages: " + ", ".join(g["label"] for g in gaps))
+    out.append({"check": "all areas covered", "pass": not missing and not gaps,
+                "detail": "; ".join(detail) or "all six areas present and every required input found", "missing": gaps})
     if plan.get("food") and plan["food"]["qty"] < people["total"]:
         out[0]["pass"] = False
         out[0]["detail"] += f"; {people['total'] - plan['food']['qty']} people without a meal"
