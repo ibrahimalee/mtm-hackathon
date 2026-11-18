@@ -57,7 +57,8 @@ def write_plan_md(state: State) -> None:
         L.append(f"- People on site: {pe['total']} ({pe['students']} students, {pe['staff']} staff, {pe['judges']} judges"
                  + (f", {pe['other']} other" if pe['other'] else "") + f"); {pe['teams']} teams")
         L.append(f"- Food: {f['name']} ({f['tier']}), {f['qty']} meals, cost {_money(f['cost'])}" if f else "- Food: none")
-        L.append(f"- Judging: {j['judges']} judges, {j['teams_per_judge']} teams each, window {j['window_minutes']} min")
+        L.append(f"- Judging: {j['judges']} judges at {_money(j['fee'])} each = {_money(j['fees_total'])}, "
+                 f"{j['teams_per_judge']} teams each, window {j['window_minutes']} min")
         for a in j["assignments"]:
             L.append(f"  - {a['judge']}: teams {a['teams']}")
         L.append("\n## Schedule\n\n| start | end | minutes | block |\n|---|---|---|---|")
@@ -65,12 +66,21 @@ def write_plan_md(state: State) -> None:
         L.append("\n## Budget\n\n| item | amount | status | sources |\n|---|---|---|---|")
         L += [f"| {l['item']} | {_money(l['amount'])} | {l['status']} | {', '.join(l['sources'])} |" for l in b["lines"]]
         L.append(f"| **total** | **{_money(b['total'])}** | cap {_money(b['cap'])} | remaining {_money(b['remaining'])} |")
+        if b["cap"] is not None:
+            fits = b["total"] <= b["cap"]
+            L.append(f"\nBudget: total {_money(b['total'])} against {_money(b['cap'])}. "
+                     + ("It fits." if fits else f"It does NOT fit, over by {_money(b['total'] - b['cap'])}."))
         for o in b["optional"]:
             L.append(f"\nOptional, not counted: {o['item']} {_money(o['amount'])} ({'fits' if o['fits'] else 'does not fit'})")
         for u in p.get("unsupported_constraints", []):
             L.append(f"\nUnsupported constraint (kept visible): {u['metric']} - \"{u['quote']}\"")
     else:
         L.append("No valid plan.")
+    run = (state.trace.get("runs") or [{}])[-1]
+    L.append("\n## Trace\n")
+    for c in run.get("calls", []):
+        L.append(f"- call #{c['n']} | {c['model']} | {c['area']}: reading the messages | {c['tokens']['total']} tokens")
+    L.append(f"- total: {len(run.get('calls', []))} call(s), {run.get('total_tokens', 0)} tokens")
     L.append("\n## Audit\n")
     L += [f"- [{'x' if a['pass'] else ' '}] {a['check']}: {a['detail']}" for a in state.audit]
     if state.rules:
