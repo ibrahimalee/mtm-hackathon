@@ -5,3 +5,4 @@ packs/
 __pycache__/
 *.pyc
 node_modules/
+devpacks/

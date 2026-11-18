@@ -58,7 +58,7 @@ export function Rail({ s, path, go, onTour, onPalette, theme, toggleTheme }: { s
           <button className="btn ghost flex-1 justify-center text-[13px]" onClick={onTour}>Guided tour</button>
           <button className="btn ghost px-3" onClick={toggleTheme} aria-label="Switch theme">{theme === "light" ? "☾" : "☀"}</button>
         </div>
-        <button onClick={onPalette} className="mono w-full text-left text-[11px] text-ink3 hover:text-ink">Search or jump: Ctrl K</button>
+        <button onClick={onPalette} className="mono min-h-[28px] w-full text-left text-[11px] text-ink3 hover:text-ink">Search or jump: Ctrl K</button>
       </div>
     </aside>
   );

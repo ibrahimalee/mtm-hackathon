@@ -87,7 +87,7 @@ One page, dark editorial design ("Ink and Signal").
 
 ## 6. Known weaknesses (please attack these)
 
-1. **The audit only knows a fixed list of required inputs.** It now fails when the event length, student count, team size, budget cap, judge limit or judging minutes are not found, and the reader gets one repair attempt to find them. But a missed venue option, price or requirement that is not on that list can still slip through. Requirements without numbers ("must have...") are caught only by a keyword check for words like must, only and remove.
+1. **The audit only knows a fixed list of required inputs.** It now fails when the event length, student count, team size, budget cap, judge limit or judging minutes are not found, and the reader gets one repair attempt to find them. But a missed venue option, price or requirement that is not on that list can still slip through. Requirements without numbers are caught only by a keyword check (must, need to, only, remove, avoid, at least and similar), so an unusual phrasing can still be missed.
 2. **Model output is not stable.** The same input can produce different shapes (quotes missing, options without a category, fees typed as expenses). We patched many of these in code, so the output converges, but it took repeated fixes, and the model is run at low reasoning effort because higher effort returned empty output.
 3. **Fixed vocabulary.** Parameters and metrics come from a short list. Unknown ones are kept visible but cannot influence the plan.
 4. **One event shape.** The solver assumes one venue, one food option, parallel judges, one meal. Multi-day events, several sessions or several meals do not fit.

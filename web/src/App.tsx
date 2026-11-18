@@ -1,4 +1,4 @@
-import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import Lenis from "lenis";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { State, fetchState } from "./api";
@@ -98,11 +98,9 @@ export default function App() {
       <main id="main" tabIndex={-1} className="relative z-10 min-h-screen px-5 pb-24 pt-8 lg:ml-[248px] lg:px-12 lg:pt-12">
         {busy && <motion.div className="fixed left-0 top-0 z-[300] h-[3px] bg-accent" initial={{ width: "0%" }} animate={{ width: "92%" }} transition={{ duration: 18, ease: "easeOut" }} />}
         <div className="mx-auto max-w-[1180px]">
-          <AnimatePresence mode="wait">
-            <motion.div key={path} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}>
-              {page}
-            </motion.div>
-          </AnimatePresence>
+          <motion.div key={path} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}>
+            {page}
+          </motion.div>
         </div>
       </main>
       {s && !s.empty && <SourceDrawer s={s} ids={source} onClose={() => setSource(null)} go={go} />}

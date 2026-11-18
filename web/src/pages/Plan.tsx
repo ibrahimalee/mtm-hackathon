@@ -8,7 +8,7 @@ type P = { s: State; go: (to: string) => void; onSource: (ids: string[]) => void
 
 const Src = ({ ids, onSource, children }: { ids?: string[]; onSource: (ids: string[]) => void; children?: ReactNode }) =>
   ids && ids.length ? (
-    <button onClick={() => onSource(ids)} className="mono inline-flex items-center gap-1 rounded border border-line2 px-1.5 text-[11px] text-ink2 hover:border-ink hover:text-ink" title="Show the message this came from">
+    <button onClick={() => onSource(ids)} className="mono inline-flex min-h-[24px] items-center gap-1 rounded border border-line2 px-1.5 text-[11px] text-ink2 hover:border-ink hover:text-ink" title="Show the message this came from">
       {children ?? ids.join(", ")} <span aria-hidden>↗</span>
     </button>
   ) : null;
@@ -47,11 +47,11 @@ function Budget({ s, onSource }: { s: State; onSource: (ids: string[]) => void }
       </div>
       <div>
         {b.lines.map((l: any, i: number) => (
-          <div key={l.item} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} className={`dash flex items-center gap-3 py-2.5 ${hover === i ? "bg-sheet2" : ""}`}>
+          <div key={l.item} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} className={`dash flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 ${hover === i ? "bg-sheet2" : ""}`}>
             <span className="h-3 w-3 shrink-0" style={{ background: SEG[i % SEG.length] }} />
             <span className="flex-1 text-[15px]">{cap(l.item)}</span>
-            <span className="chip">{l.status === "chosen" ? "chosen by the planner" : "already committed"}</span>
-            <span className="mono w-28 text-right text-[15px]">{money(l.amount)}</span>
+            <span className="chip hidden sm:inline-flex">{l.status === "chosen" ? "chosen by the planner" : "already committed"}</span>
+            <span className="mono w-24 text-right text-[15px] sm:w-28">{money(l.amount)}</span>
             <Src ids={l.sources} onSource={onSource} />
           </div>
         ))}
@@ -91,7 +91,7 @@ function Options({ s, cat, chosenName, onSource }: { s: State; cat: "venue" | "f
             <span className="flex-1 text-[15px]">{name}{(o.x?.features || []).length > 0 && <span className="ml-2 text-[12px] text-ink3">{o.x.features.join(", ")}</span>}</span>
             {cat === "venue" && <span className="mono text-[13px] text-ink2">seats {o.x?.capacity ?? "?"}</span>}
             <span className="mono text-[14px]">{money(o.x?.price)}{o.x?.basis === "per_head" ? " / head" : ""}</span>
-            <span className="w-72 text-right text-[13px]" style={{ color: isChosen ? "var(--green)" : "var(--ink2)" }}>{why}</span>
+            <span className="w-full text-[13px] sm:w-72 sm:text-right" style={{ color: isChosen ? "var(--green)" : "var(--ink2)" }}>{why}</span>
             <Src ids={[o.id]} onSource={onSource} />
           </motion.div>
         );

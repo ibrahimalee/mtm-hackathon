@@ -203,7 +203,7 @@ def _uncovered(text: str, quotes: list[str], ign: set) -> list:
     return out
 
 
-_MODAL = re.compile(r"\b(?:must|required|requires?|mandatory|compulsory|only|at least|at most|no more than|not allowed|cannot|should not|remove|exclude)\b", re.I)
+_MODAL = re.compile(r"\b(?:must|need(?:s|ed)? to|needs?|have to|has to|shall|required|requires?|requirement|mandatory|compulsory|only|at least|at most|no more than|no fewer than|minimum|maximum|up to|not allowed|prohibited|forbidden|cannot|can't|should not|shouldn't|should|ensure|make sure|remove|exclude|avoid|without)\b", re.I)
 
 
 def _unrecorded(text: str, quotes: list[str]) -> list[str]:
