@@ -115,7 +115,11 @@ def check_dirs() -> bool:
         ok("state/ and out/ are absent")
         return True
     bad(f"{', '.join(present)} exist; a run would be an update, not a full run")
-    if sys.stdin.isatty() and input("Delete them now? [y/N] ").strip().lower() == "y":
+    try:
+        answer = input("Delete them now? [y/N] ").strip().lower() if sys.stdin.isatty() else "n"
+    except EOFError:
+        answer = "n"
+    if answer == "y":
         for d in present:
             shutil.rmtree(d)
         ok("deleted")
