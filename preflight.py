@@ -54,8 +54,14 @@ def pack_tokens():
     return files, nums - ALLOWED_NUMBERS, words
 
 
+def git(*args):
+    """Run git for this folder only. safe.directory is passed per command, so the user's git config is left alone."""
+    here = os.path.abspath(".").replace(os.sep, "/")
+    return subprocess.run(["git", "-c", f"safe.directory={here}", *args], capture_output=True, text=True)
+
+
 def tracked_files():
-    out = subprocess.run(["git", "ls-files"], capture_output=True, text=True)
+    out = git("ls-files")
     if out.returncode != 0:
         return None, out.stderr.strip()
     fs = [f for f in out.stdout.splitlines() if not f.startswith("web/dist/") and os.path.basename(f) not in SKIP_NAMES]
@@ -97,11 +103,11 @@ def check_leaks() -> bool:
 
 
 def check_git() -> bool:
-    st = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+    st = git("status", "--porcelain")
     if st.returncode != 0:
         bad(f"git status failed: {st.stderr.strip()}")
         return False
-    h = subprocess.run(["git", "log", "-1", "--format=%h %s"], capture_output=True, text=True).stdout.strip()
+    h = git("log", "-1", "--format=%h %s").stdout.strip()
     if st.stdout.strip():
         bad("git status is not clean:\n" + st.stdout.rstrip())
         return False

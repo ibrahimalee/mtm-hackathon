@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import re
 
-from .ledger import Ledger, identity, primary
-from .numbers import quote_has_number, to_num
+from .ledger import Ledger, identity, primary, same_identity
+from .numbers import find_numbers, quote_has_number, to_num
 from .schema import RANK, Fact, Rejection
 from .solver import STRUCTURAL, solve
 
@@ -19,7 +19,7 @@ DOMAINS = {
     "food_vendor": {"food_option", "request"},
     "participant_group": {"request"},
     "individual": {"request"},
-    "other": {"people", "event", "judging", "venue_option", "food_option", "misc", "request"},
+    "other": {"misc", "request"},  # an unrecognised sender is believed on general facts only; anything else waits as a request
 }
 
 
@@ -46,6 +46,19 @@ def domain(f: Fact) -> str:
     if head in ("venue", "food"):
         return "misc"
     return "misc"
+
+
+def _dkey(d: str | None, month_day_only: bool) -> str:
+    return (d or "")[5:] if month_day_only and d else (d or "")
+
+
+def _older(a: str | None, b: str | None) -> bool:
+    """True when date a is before date b. A year of 0000 means unknown, so only month and day are compared then."""
+    if not a or not b:
+        return False
+    if a.startswith("0000") or b.startswith("0000"):
+        return a[5:] < b[5:]
+    return a < b
 
 
 def _what(f: Fact) -> str:
@@ -111,7 +124,7 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
     existing = ledger.find_existing(f) if f.type != "request" else None
     if existing is None and all_facts is not None and f.type != "request":
         ident = identity(f)
-        existing = next((e for e in active if e.id != f.id and identity(e) == ident), None) if ident else None
+        existing = next((e for e in active if e.id != f.id and same_identity(identity(e), ident)), None) if ident else None
     ctx = {}
     inherit = {}
     if existing and f.type in ("option", "expense", "block"):
@@ -121,7 +134,7 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
         ctx = {"other_date": existing.date, "other_value": primary(existing), "owner_role": existing.role, "other_id": existing.id}
 
     # 2 recency
-    if "recency" not in disabled and existing and f.date and existing.date and f.date < existing.date:
+    if "recency" not in disabled and existing and _older(f.date, existing.date):
         return bad("R-STALE", "recency", f"a newer fact {existing.id} dated {existing.date} already exists (this one is dated {f.date})", ctx)
 
     # 3 ownership / authority
@@ -134,7 +147,7 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
         elif existing and RANK.get(role, 0) < RANK.get(existing.role, 0):
             return bad("R-AUTH", "authority", f"{role} ranks below {existing.role}, which owns {existing.id}", ctx)
         elif not allowed:
-            if role in ("participant_group", "individual"):
+            if role in ("participant_group", "individual", "other"):
                 convert = f"{role} can only make requests, not set {dom} facts"
             else:
                 return bad("R-AUTH", "authority", f"{role} may not set {dom} facts", ctx)
@@ -164,11 +177,18 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
 
     # 5 internal consistency
     parts = (f.x or {}).get("parts")
-    if "consistency" not in disabled and isinstance(parts, list) and parts and all(isinstance(p, (int, float)) for p in parts):
-        tot = primary(f)
-        if isinstance(tot, (int, float)) and abs(sum(parts) - tot) > 0.5:
-            return bad("R-TOTAL", "consistency", f"stated {tot} but its parts add up to {sum(parts)}",
-                       {"stated": tot, "computed": sum(parts)})
+    tot = primary(f)
+    given = bool(parts)
+    if not parts and f.type in ("expense", "param") and isinstance(tot, (int, float)) and re.search(r"total|altogether|overall|sum", f"{f.key} {f.quote}", re.I):
+        others = [n.value for n in sorted(find_numbers(f.quote or "", skip_dates=False), key=lambda n: n.start) if n.value != tot]
+        parts = others if len(others) >= 2 else None  # a total quoted beside its parts is checked against them
+    if isinstance(parts, list) and parts and all(isinstance(p, (int, float)) for p in parts) and isinstance(tot, (int, float)):
+        if abs(sum(parts) - tot) > 0.5:
+            if "consistency" not in disabled:
+                return bad("R-TOTAL", "consistency", f"stated {tot} but its parts add up to {sum(parts)}",
+                           {"stated": tot, "computed": sum(parts)})
+        elif not given and f.type == "expense":
+            return {"ok": True, "convert": None, "supersede": [], "ctx": ctx, "duplicate_of": "its own parts (a matching total is only a check)"}
 
     # 6 model-flagged contradiction
     sup = [existing.id] if existing else []
@@ -179,9 +199,9 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
             sup.append(cx.id)
         elif RANK.get(f.role, 0) < RANK.get(cx.role, 0):
             return bad("R-CONFLICT", "conflict", f"contradicts {cx.id} owned by higher-ranked {cx.role}", cctx)
-        elif f.date and cx.date and f.date > cx.date:
+        elif _older(cx.date, f.date):
             sup.append(cx.id)
-        elif f.date and cx.date and f.date < cx.date:
+        elif _older(f.date, cx.date):
             return bad("R-CONFLICT", "conflict", f"contradicts newer {cx.id}", cctx)
         else:
             return bad("R-CONFLICT", "conflict", f"contradicts {cx.id} with equal rank and date; kept the existing fact", cctx)
@@ -200,7 +220,8 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
 def process(ledger: Ledger, incoming: list[Fact], msg_pos: dict, corpus: str, step: int, trace, disabled=frozenset()):
     """Apply incoming facts in chronological order. Returns list[Rejection]."""
     rejections = []
-    order = sorted(incoming, key=lambda f: (f.date or "", msg_pos.get(f.msg_id, 0), int(f.id[1:])))
+    placeholder = any((x.date or "").startswith("0000") for x in incoming + ledger.facts)
+    order = sorted(incoming, key=lambda f: (_dkey(f.date, placeholder), msg_pos.get(f.msg_id, 0), int(f.id[1:])))
     for f in order:
         v = evaluate(ledger.active(), f, ledger, corpus, disabled, all_facts=True)
         if not v["ok"]:

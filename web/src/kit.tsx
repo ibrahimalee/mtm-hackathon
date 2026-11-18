@@ -138,9 +138,9 @@ export function Meter({ current, limit, atMost = true, label }: { current: numbe
 
 export function Tabs({ tabs, value, onChange }: { tabs: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
   return (
-    <div className="mb-6 flex flex-wrap gap-1 border-b border-line2">
+    <div role="tablist" className="mb-6 flex flex-wrap gap-1 border-b border-line2">
       {tabs.map((t) => (
-        <button key={t.id} onClick={() => onChange(t.id)} className={`relative px-4 py-2 text-[14px] ${value === t.id ? "text-ink" : "text-ink3 hover:text-ink"}`}>
+        <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)} className={`relative px-4 py-2 text-[14px] ${value === t.id ? "text-ink" : "text-ink3 hover:text-ink"}`}>
           {t.label}
           {value === t.id && <motion.span layoutId="tab-underline" className="absolute inset-x-0 -bottom-px h-[3px] bg-accent" />}
         </button>

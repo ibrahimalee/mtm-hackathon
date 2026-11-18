@@ -16,7 +16,7 @@ def identity(f: Fact):
     if f.type == "param":
         return ("param", f.key)
     if f.type == "option":
-        return ("option", norm(x.get("category") or "other"), norm(x.get("name") or f.key))
+        return ("option", norm(x.get("category") or "other"), norm(x.get("name") or f.key), norm(x.get("tier")))
     if f.type == "expense":
         return ("expense", norm(x.get("item") or f.key))
     if f.type == "block":
@@ -24,6 +24,15 @@ def identity(f: Fact):
     if f.type == "constraint":
         return ("constraint", x.get("metric") or f.key, x.get("op") or "")
     return None
+
+
+def same_identity(a, b) -> bool:
+    """Equal identities. Two options with one name but different tiers are different options; a missing tier matches any."""
+    if a is None or b is None:
+        return False
+    if a[0] == "option" and b[0] == "option":
+        return a[:3] == b[:3] and (not a[3] or not b[3] or a[3] == b[3])
+    return a == b
 
 
 def primary(f: Fact):
@@ -81,7 +90,7 @@ class Ledger:
     def find_existing(self, f: Fact) -> Fact | None:
         ident = identity(f)
         by_name = None if ident is None else next(
-            (e for e in self.facts if e.status == "active" and e.id != f.id and identity(e) == ident), None)
+            (e for e in self.facts if e.status == "active" and e.id != f.id and same_identity(identity(e), ident)), None)
         e = self.get(f.up) if f.up else None
         if e and e.status == "active" and e.type == f.type and e.id != f.id and (by_name is None or by_name.id == e.id):
             return e  # the model's pointer wins unless it disagrees with an exact name match

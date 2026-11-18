@@ -8,14 +8,14 @@
   --sheet2: #fffdf6;
   --ink: #16201b;
   --ink2: #46514a;
-  --ink3: #7d857c;
+  --ink3: #566057;
   --line: rgba(22, 32, 27, 0.12);
   --line2: rgba(22, 32, 27, 0.3);
-  --accent: #d8421e;
+  --accent: #c23a17;
   --accent-soft: rgba(216, 66, 30, 0.1);
-  --green: #1b6a50;
+  --green: #17614a;
   --green-soft: rgba(27, 106, 80, 0.12);
-  --amber: #a8681a;
+  --amber: #8a5210;
   --amber-soft: rgba(168, 104, 26, 0.14);
   --blue: #2c4f85;
   --hard: #16201b;
@@ -28,7 +28,7 @@
   --sheet2: #1b2620;
   --ink: #ece7da;
   --ink2: #b6bbb1;
-  --ink3: #79827a;
+  --ink3: #939c93;
   --line: rgba(236, 231, 218, 0.11);
   --line2: rgba(236, 231, 218, 0.26);
   --accent: #ff6b3f;
@@ -83,6 +83,9 @@ a { color: inherit; text-decoration: none; }
 /* ---------------------------------------------------------------- surfaces */
 .sheet { background: var(--sheet); border: 1px solid var(--line2); border-radius: 6px; }
 .sheet.pad { padding: 20px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.skip:focus { position: fixed; left: 12px; top: 12px; z-index: 400; width: auto; height: auto; margin: 0; clip: auto; padding: 8px 14px; background: var(--sheet2); border: 2px solid var(--ink); }
+@media (max-width: 640px) { body { font-size: 14px; } .sheet.pad { padding: 14px; } }
 .sheet-hard { box-shadow: 3px 3px 0 var(--hard); }
 .lift { transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms cubic-bezier(.2,.8,.2,1); }
 .lift:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--hard); }

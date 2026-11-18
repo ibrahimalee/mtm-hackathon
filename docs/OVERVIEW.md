@@ -87,7 +87,7 @@ One page, dark editorial design ("Ink and Signal").
 
 ## 6. Known weaknesses (please attack these)
 
-1. **The audit cannot see what the reader missed.** If the model fails to extract a fact (for example the event length), the plan is built without it and the audit still passes, because the audit checks consistency, not completeness. We saw an update run with a build period far longer than the stated event. This is the biggest gap.
+1. **The audit only knows a fixed list of required inputs.** It now fails when the event length, student count, team size, budget cap, judge limit or judging minutes are not found, and the reader gets one repair attempt to find them. But a missed venue option, price or requirement that is not on that list can still slip through. Requirements without numbers ("must have...") are caught only by a keyword check for words like must, only and remove.
 2. **Model output is not stable.** The same input can produce different shapes (quotes missing, options without a category, fees typed as expenses). We patched many of these in code, so the output converges, but it took repeated fixes, and the model is run at low reasoning effort because higher effort returned empty output.
 3. **Fixed vocabulary.** Parameters and metrics come from a short list. Unknown ones are kept visible but cannot influence the plan.
 4. **One event shape.** The solver assumes one venue, one food option, parallel judges, one meal. Multi-day events, several sessions or several meals do not fit.
@@ -95,7 +95,7 @@ One page, dark editorial design ("Ink and Signal").
 6. **Authority is a hand-written table.** An unfamiliar role is allowed to act unless it contradicts a higher-ranked fact, which can be too permissive or too strict.
 7. **Planner policy is arbitrary.** Opening, meal, results and minimum build lengths are named constants chosen by us, not learned or asked for.
 8. **The red team tests our code, not the reader.** It mutates facts we already extracted, so it cannot say whether the reader missed or invented anything.
-9. **Only tried on one sample pack.** Extra test packs (Roman Urdu, lakh and k numbers, unknown senders, plausible but wrong updates) have not been run yet.
+9. **Only tried on five inputs.** The sample plus four invented packs (Roman Urdu with lakh and k numbers, formal emails, unrecognised requirements, and an update with a stale price, a wrong total and a student's price request) all produced correct plans with audit 6/6. That is a small sample; the model's output still varies between runs, so a different input could fail in a new way.
 10. **Drafted replies are templates.** They are accurate but stiff.
 
 ## 7. Questions for brainstorming

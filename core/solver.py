@@ -92,8 +92,12 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
     committed = [e for e in expenses if str(e.x.get("status", "committed")).lower() != "requested"]
     requested = [e for e in expenses if str(e.x.get("status", "")).lower() == "requested"]
     constraints, unsupported = [], []
+    stated = " ".join(str(ft).lower() for v in venues for ft in (v.x.get("features") or []))
     for c in (f for f in fs if f.type == "constraint"):
-        if c.x.get("metric") in METRICS:
+        if c.x.get("metric") == "venue.features" and str(primary(c)).lower() not in stated and (c.x.get("op") or "") in ("includes", "=="):
+            unsupported.append({"fact_id": c.id, "metric": "venue.features", "quote": c.quote,
+                                "reason": "no venue option states this feature, so it cannot be checked"})
+        elif c.x.get("metric") in METRICS:
             constraints.append(c)
         else:
             unsupported.append({"fact_id": c.id, "metric": c.x.get("metric") or "unsupported",

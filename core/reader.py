@@ -5,6 +5,7 @@ import json
 import re
 
 from .ledger import primary
+from .audit import REQUIRED
 from .gatekeeper import _numeric_fields
 from .numbers import find_numbers, numbers_in, quote_has_number, to_num
 from .schema import FACT_TYPES, METRICS, PARAM_KEYS, ROLES, Fact, Message
@@ -25,7 +26,7 @@ FACT_SPEC = (
     'constraint x:{metric,op:<=|>=|==|!=|includes|excludes,value}; metric one of people.total venue.capacity venue.cost '
     'venue.features venue.name food.per_head food.cost food.qty judges.used judging.teams_per_judge judging.window_minutes '
     'schedule.total_minutes schedule.blocks schedule.end budget.total budget.remaining, else "unsupported".\n'
-    'request: asked for, not decided. For a stated total add x.parts=[component numbers]. '
+    'A requirement or prohibition with no number is still a constraint (op includes or excludes). request: asked for, not decided. For a stated total add x.parts=[component numbers]. '
     'Convert lakh/k to full numbers. Never invent; quotes must be verbatim. '
     'A number giving a duration, count, price or limit is always a fact; ign is only for clock times, list or page numbers and small talk.'
 )
@@ -42,12 +43,14 @@ SYSTEM = (
 UPDATE_NOTE = "\nActive facts are listed as id|type|key|value|role|date. Set up or cx when a new fact changes or contradicts one."
 
 REPAIR_SYSTEM = (
-    'Numbers in some messages were not covered by any fact. A duration, count, price or limit is a fact; only clock times, list or page numbers and small talk may go to ign. For each message #i return '
-    '{"m":[{"i":i,"f":[missing facts],"ign":[numbers that are not facts]}]} as JSON. Add only what is missing.\n' + FACT_SPEC
+    'Some facts are missing or unverified. For each message #i give the facts it states that are missing, or restate unverified ones with q copied exactly from the message. '
+    'A duration, count, price or limit is a fact; only clock times, list or page numbers and small talk are not. For "Not found yet" items search the text and add them only if stated. '
+    'Return {"m":[{"i":i,"f":[facts]}]} as JSON. Add only what is missing.\n' + FACT_SPEC
 )
 
 _HEADER = re.compile(
-    r"\A\s*#?\s*(?:message\s+)?\d{1,3}(?=[\s.):])"
+    r"\bpage\s+\d+\s+of\s+\d+"
+    r"|\A\s*#?\s*(?:message\s+)?\d{1,3}(?=[\s.):])"
     r"|\[[^\]\n]{0,45}\]"
     r"|^\s*\d{1,2}[/.]\d{1,2}[/.]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]m)?\s*-"
     r"|^\s*(?:date|sent)\s*:.*$", re.I | re.M)
@@ -129,7 +132,8 @@ def _expand(fd: dict, fid: str, msg: Message, step: int) -> Fact | None:
         x = {}
     if t == "option" and str(x.get("category", "")).lower() == "food":
         name = str(x.get("name") or k).lower()
-        x["tier"] = next((tier for tier in ("basic", "premium", "standard") if tier in name), x.get("tier"))
+        words = {"basic": ("basic", "economy", "budget", "lite", "value"), "premium": ("premium", "deluxe", "gold", "vip"), "standard": ("standard",)}
+        x["tier"] = next((t for t, ws in words.items() if any(w in name for w in ws)), x.get("tier"))
     for fld in ("price", "amount", "minutes", "capacity", "value", "qty"):
         if fld in x:
             n = to_num(x[fld])
@@ -150,9 +154,11 @@ def _norm(s: str) -> str:
 def _ground(f: Fact, m: Message, trace) -> None:
     """If the model's quote is missing or not in the message, use the shortest sentence of the message that holds all of
     the fact's numbers. The quote still has to be real text from the file, and a number that is not there stays ungrounded."""
-    if f.type == "request" or (f.quote and _norm(f.quote) in _norm(m.text)):
+    if f.type == "request":
         return
     nums = _numeric_fields(f)
+    if f.quote and _norm(f.quote) in _norm(m.text) and all(quote_has_number(f.quote, n) for n in nums):
+        return
     if not nums or not m.text:
         return
     sentences = [x.strip() for x in re.split(r"(?<=[.!?”\"])\s+|\n+", m.text) if x.strip()]
@@ -173,18 +179,48 @@ def _ign_values(ign) -> set:
     return out
 
 
+_NOT_UNITS = {"of", "st", "nd", "rd", "th", "am", "pm", "and", "or", "to", "is", "in", "on", "at"}  # words after a number that do not make it a fact
+_UNIT = re.compile(r"\b(?:min|mins|minutes?|hours?|hrs?|students?|staff|people|persons?|teams?|judges?|seats?|head|rs|pkr|usd|per|each|guests?|meals?)\b|%", re.I)
+
+
 def _uncovered(text: str, quotes: list[str], ign: set) -> list:
+    """Numbers no fact quote covers. Small bare integers (list markers, page counts) are only flagged beside a unit word."""
     masked = [(m.start(), m.end()) for m in _HEADER.finditer(text)]
     have = set(ign)
     for q in quotes:
         have |= numbers_in(q)
     out = []
     for n in find_numbers(text):
-        if any(s <= n.start < e for s, e in masked):
+        if any(s <= n.start < e for s, e in masked) or n.value in have or n.value in out:
             continue
-        if n.value not in have and n.value not in out:
+        after = text[n.end:n.end + 14].lstrip(" -")
+        before = text[max(0, n.start - 5):n.start]
+        nxt = re.match(r"([a-z]+)", after)
+        word = nxt.group(1) if nxt else ""
+        currency = re.search(r"(?:rs|pkr|usd|\$)\.?\s*$", before, re.I)
+        if n.value >= 100 or _UNIT.match(after) or currency or (word and word not in _NOT_UNITS):
             out.append(n.value)
     return out
+
+
+_MODAL = re.compile(r"\b(?:must|required|requires?|mandatory|compulsory|only|at least|at most|no more than|not allowed|cannot|should not|remove|exclude)\b", re.I)
+
+
+def _unrecorded(text: str, quotes: list[str]) -> list[str]:
+    """Sentences that state a requirement (must, at least, only, remove...) which no fact quote touches."""
+    qs = [_norm(q) for q in quotes if q]
+    out = []
+    for sent in (x.strip() for x in re.split(r"(?<=[.!?”\"])\s+|\n+", text) if x.strip()):
+        if _MODAL.search(sent) and not any(q in _norm(sent) or _norm(sent) in q for q in qs):
+            out.append(sent[:160])
+    return out
+
+
+def _unverified(f: Fact, m: Message) -> bool:
+    """A numeric fact whose quote is not in its message, even after the quote fallback."""
+    if f.type == "request" or not _numeric_fields(f):
+        return False
+    return not (f.quote and _norm(f.quote) in _norm(m.text))
 
 
 def read(llm, trace, raw: str, active: list[Fact] | None, next_msg: int, next_fact: int, step: int):
@@ -197,26 +233,14 @@ def read(llm, trace, raw: str, active: list[Fact] | None, next_msg: int, next_fa
         trace.call(r["model"], AREA, f"[system]\n{sys_}\n\n[user]\n{usr}", r["content"], r["usage"], r["ms"])
         return r
 
-    def no_quote(d) -> int:
-        return sum(1 for it in d["m"] if isinstance(it, dict) for fd in (it.get("f") if isinstance(it.get("f"), list) else [])
-                   if isinstance(fd, dict) and fd.get("t") != "request" and not fd.get("q"))
-
     data = _parse(call(system, user)["content"])
-    problem = None
     if data is None or not isinstance(data.get("m"), list):
-        problem = "reader JSON did not parse"
-        note = "Your previous reply was not valid JSON. Reply with valid JSON only."
-    elif no_quote(data):
-        problem = f"{no_quote(data)} fact(s) came back without the required quote"
-        note = "Your previous reply left out q on some facts. Reply again with the full JSON; every fact must have q, an exact verbatim quote containing its numbers."
-    if problem:
-        trace.event("warn", f"{problem}, making one repair call")
-        again = _parse(call(system, user + "\n\n" + note)["content"])
-        if again is not None and isinstance(again.get("m"), list) and (data is None or no_quote(again) <= no_quote(data)):
-            data = again
+        trace.event("warn", "reader JSON did not parse, making one repair call")
+        data = _parse(call(system, user + "\n\nYour previous reply was not valid JSON. Reply with valid JSON only.")["content"])
         if data is None or not isinstance(data.get("m"), list):
             trace.event("reject", "reader JSON still invalid after repair; nothing extracted")
             return [], []
+    repaired = False
 
     toks = [t for t in _tok(raw) if t[0]]
     entries, cursor = [], 0
@@ -259,35 +283,63 @@ def read(llm, trace, raw: str, active: list[Fact] | None, next_msg: int, next_fa
         facts.extend(mf)
         per_msg.append((m, mf, _ign_values(item.get("ign"))))
 
-    # coverage check: numbers neither inside a fact quote nor deliberately ignored
+    # One targeted repair call for everything the code could not settle: numbers no fact covers, facts whose quote
+    # cannot be verified, and required inputs nobody stated.
+    have = {f.key for f in facts if f.type == "param"} | {f.key for f in (active or []) if f.type == "param"}
+    gaps = [(k, label) for k, label in REQUIRED.items() if k not in have]
     flagged = []
     for m, mf, ign in per_msg:
-        if m.text and not m.reason == "not about the event":
-            un = _uncovered(m.text, [f.quote for f in mf], ign)
+        if m.text and m.reason != "not about the event":
+            un = _uncovered(m.text, [f.quote for f in mf], ign) + _unrecorded(m.text, [f.quote for f in mf])
+            bad = [f for f in mf if _unverified(f, m)]
+            if un or bad:
+                flagged.append((m, mf, un, bad))
+    if flagged or gaps:
+        bits = [f"{m.id} ({len(un)} number(s), {len(bad)} unverified fact(s))" for m, _, un, bad in flagged]
+        if gaps:
+            bits.append("not found anywhere: " + ", ".join(l for _, l in gaps))
+        trace.event("warn", "making one targeted repair call for " + "; ".join(bits))
+        parts = []
+        for i, (m, mf, un, bad) in enumerate(flagged):
+            line = f"#{i} {m.text}"
             if un:
-                flagged.append((m, mf, ign, un))
-    if flagged:
-        trace.event("warn", "possibly missed numbers in " + ", ".join(f"{m.id} ({len(un)})" for m, _, _, un in flagged)
-                    + "; making one targeted repair call")
-        body = "\n\n".join(f"#{i} {m.text}\nUncovered numbers: {', '.join(str(u) for u in un)}"
-                           for i, (m, _, _, un) in enumerate(flagged))
-        rd = _parse(call(REPAIR_SYSTEM, body)["content"])
+                line += f"\nNot yet recorded (numbers or stated requirements): {'; '.join(str(u) for u in un)}"
+            if bad:
+                line += "\nFacts whose quote could not be verified: " + "; ".join(f"{b.key} {primary(b)}" for b in bad)
+            parts.append(line)
+        if gaps:
+            parts.append(f"#{len(flagged)} (all messages, find these) {raw}\nNot found yet: " + ", ".join(f"{l} ({k})" for k, l in gaps))
+        rd = _parse(call(REPAIR_SYSTEM, "\n\n".join(parts))["content"])
+        repaired = True
         if rd and isinstance(rd.get("m"), list):
             for r in [i for i in rd["m"] if isinstance(i, dict)]:
                 try:
-                    m, mf, ign, un = flagged[int(r.get("i"))]
-                except (TypeError, ValueError, IndexError):
+                    k = int(r.get("i"))
+                except (TypeError, ValueError):
                     continue
                 for fd in (r.get("f") if isinstance(r.get("f"), list) else []):
-                    f = _expand(fd, f"F{fn}", m, step)
-                    if f is not None and any(o.msg_id == f.msg_id and o.type == f.type and o.key == f.key
-                                             and o.value == f.value and primary(o) == primary(f) for o in facts):
-                        continue  # the repair repeated a fact we already have
-                    if f is not None:
-                        fn += 1
-                        facts.append(f)
-                        _ground(f, m, trace)
-                        trace.event("info", f"repair added {f.id} ({f.type} {f.key}) to {m.id}")
+                    owner = flagged[k][0] if 0 <= k < len(flagged) else None
+                    q = _norm(str(fd.get("q") or "")) if isinstance(fd, dict) else ""
+                    if owner is None or (q and q not in _norm(owner.text)):
+                        owner = next((mm for mm in messages if q and q in _norm(mm.text)), owner)
+                    if owner is None:
+                        continue
+                    f = _expand(fd, f"F{fn}", owner, step)
+                    if f is None:
+                        continue
+                    _ground(f, owner, trace)
+                    if _unverified(f, owner):
+                        continue
+                    if any(o.msg_id == f.msg_id and o.type == f.type and o.key == f.key and primary(o) == primary(f) for o in facts):
+                        continue
+                    fn += 1
+                    facts.append(f)
+                    trace.event("info", f"repair added {f.id} ({f.type} {f.key}) to {owner.id}")
+            for m, mf, un, bad in flagged:  # facts the repair replaced or could not verify are dropped, not guessed
+                for b in bad:
+                    twin = any(o is not b and o.msg_id == b.msg_id and o.type == b.type and o.key == b.key for o in facts)
+                    if twin:
+                        facts.remove(b)
         else:
             trace.event("warn", "repair reply unusable; keeping the first reading")
     return messages, facts

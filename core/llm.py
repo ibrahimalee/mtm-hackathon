@@ -7,6 +7,7 @@ import time
 import httpx
 
 TIMEOUT_S = 25
+SEED = 7  # fixed sampling seed so repeated reads of the same text vary as little as the provider allows
 MIN_ATTEMPTS = 4  # at least this many tries per run; with more keys, every key gets one try
 BACKOFF = [0.5, 1.0, 1.0, 1.0]
 
@@ -48,7 +49,7 @@ class LLM:
             raise LLMError("LLM_BASE_URL and at least one LLM_API_KEYS entry are required")
 
     def chat(self, area: str, system: str, user: str) -> dict:
-        body = {"model": self.model, "temperature": 0, "response_format": {"type": "json_object"},
+        body = {"model": self.model, "temperature": 0, "seed": SEED, "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if "gpt-oss" in self.model:
             body["reasoning_effort"] = "low"  # higher effort used the whole output budget on reasoning and returned empty JSON
@@ -61,8 +62,10 @@ class LLM:
                                headers={"Authorization": f"Bearer {key}"})
                 if r.status_code == 429 or r.status_code >= 500:
                     why = f"{r.status_code} on {label}"
-                elif r.status_code == 400 and "json_validate_failed" in r.text:
-                    why = f"JSON mode produced no valid output on {label}"
+                elif r.status_code == 400 and "json_validate_failed" in r.text and "response_format" in body:
+                    del body["response_format"]  # provider's JSON mode failed; ask for JSON in plain text and parse it ourselves
+                    self.trace.event("retry", f"JSON mode failed on {label}; retrying without it (the reply is still parsed and checked)")
+                    continue
                 elif r.status_code >= 400:
                     raise LLMError(f"model API returned {r.status_code}: {r.text[:2 * 10 ** 2]}")
                 else:

@@ -91,10 +91,11 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
+      <a href="#main" className="sr-only skip">Skip to content</a>
       <Background />
       <Rail s={s} path={path} go={go} onTour={() => setTour(0)} onPalette={() => setPalette(true)} theme={theme} toggleTheme={toggle} />
       <MobileBar path={path} go={go} theme={theme} toggleTheme={toggle} />
-      <main className="relative z-10 min-h-screen px-5 pb-24 pt-8 lg:ml-[248px] lg:px-12 lg:pt-12">
+      <main id="main" tabIndex={-1} className="relative z-10 min-h-screen px-5 pb-24 pt-8 lg:ml-[248px] lg:px-12 lg:pt-12">
         {busy && <motion.div className="fixed left-0 top-0 z-[300] h-[3px] bg-accent" initial={{ width: "0%" }} animate={{ width: "92%" }} transition={{ duration: 18, ease: "easeOut" }} />}
         <div className="mx-auto max-w-[1180px]">
           <AnimatePresence mode="wait">
@@ -108,7 +109,7 @@ export default function App() {
       {tour !== null && ready && <Tour step={tour} setStep={setTour} go={go} onExit={() => setTour(null)} />}
       <Palette open={palette} setOpen={setPalette} actions={actions} />
       <ShortcutSheet open={help} onClose={() => setHelp(false)} />
-      {toast && <div role="alert" className="sheet fixed bottom-4 right-4 z-[300] px-4 py-2 text-[14px] text-accent" style={{ borderColor: "var(--accent)" }}>{toast}</div>}
+      {toast && <div role="alert" aria-live="assertive" className="sheet fixed bottom-4 right-4 z-[300] px-4 py-2 text-[14px] text-accent" style={{ borderColor: "var(--accent)" }}>{toast}</div>}
     </MotionConfig>
   );
 }
