@@ -38,7 +38,7 @@ def audit(facts, plan: dict) -> list[dict]:
         probs.append("budget lines do not sum to total")
     if plan.get("food") and plan["food"]["per_head"] is not None:
         fd = plan["food"]
-        if abs(fd["per_head"] * fd["qty"] - fd["cost"]) > 0.5 and fd["sources"]:
+        if abs(fd["per_head"] * fd["qty"] * (100 + n("food.surcharge_pct")) / 100 - fd["cost"]) > 0.5 and fd["sources"]:
             opt = next((f for f in act if f.id == fd["sources"][0]), None)
             if opt is not None and opt.x.get("basis", "per_head") == "per_head":
                 probs.append("food cost != price x quantity")
@@ -59,9 +59,21 @@ def audit(facts, plan: dict) -> list[dict]:
         out.append({"check": "venue fits", "pass": False, "detail": "no venue chosen"})
     else:
         ok = v["capacity"] is None or v["capacity"] >= people["total"]
+        # Stated venue requirements are checked too: a required feature the chosen venue lacks, or a venue ruled out.
+        have = [str(ft).lower() for ft in (v.get("features") or [])]
+        unmet = []
+        for c in act:
+            if c.type != "constraint" or isinstance(c.x.get("names"), list):
+                continue
+            metric, op, val = c.x.get("metric"), c.x.get("op") or "==", str(primary(c)).lower()
+            if metric == "venue.features" and op in ("includes", "==") and not any(val in h or h in val for h in have):
+                unmet.append(f"required '{val}' is not offered by {v['name']}")
+            if metric == "venue.name" and op == "!=" and val in str(v["name"]).lower():
+                unmet.append(f"{v['name']} is stated as unavailable")
+        problem = (f"{people['total'] - v['capacity']} people without a seat" if not ok else "") or "; ".join(unmet)
+        ok = ok and not unmet
         out.append({"check": "venue fits", "pass": ok,
-                    "detail": f"{v['name']} seats {v['capacity']} for {people['total']}" if ok
-                    else f"{people['total'] - v['capacity']} people without a seat"})
+                    "detail": f"{v['name']} seats {v['capacity']} for {people['total']}" if ok else problem})
     # 4 schedule valid
     sch = plan["schedule"]
     total = sum(s["minutes"] for s in sch)

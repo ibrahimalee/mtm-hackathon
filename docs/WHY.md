@@ -126,7 +126,7 @@ Each entry: purpose, what breaks without it, and the alternative we rejected.
 | UI | Plan, Review, Activity (trace) pages |
 | Predicting a change | Write the prediction before an update, then compare it with the forecast and recomputed areas printed in the trace |
 | Token use | One reading call, a short prompt, and a repair call only when the code finds something missing |
-| Small-model bonus | Set `LLM_MODEL` in `.env`. We measured the 20B model: it matched on the sample but failed two of three runs on harder invented packs, so the default stays on the 120B model |
+| Small-model bonus | Set `LLM_MODEL` in `.env`. We measured the smaller twenty-billion-parameter model: it matched on the sample but failed two of three runs on harder invented packs, so the default stays on the larger model |
 
 ## Judge tour
 

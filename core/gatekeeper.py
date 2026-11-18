@@ -142,6 +142,12 @@ def evaluate(active: list[Fact], f: Fact, ledger: Ledger, corpus: str | None, di
     if "authority" not in disabled and f.type != "request":
         dom, role = domain(f), f.role
         allowed = dom in DOMAINS.get(role, DOMAINS["other"])
+        if f.type in ("constraint", "param") and dom == "misc" and role in ("venue_vendor", "food_vendor") \
+                and str(f.key if f.type == "param" else (f.x or {}).get("metric") or f.key).split(".")[0] == {"venue_vendor": "venue", "food_vendor": "food"}[role]:
+            allowed = True  # a vendor may state facts about its own offer (features, availability, surcharge)
+        if f.type == "constraint" and role in ("participant_group", "individual") and (f.x or {}).get("metric") == "venue.features" \
+                and (f.x or {}).get("op") == "includes" and not isinstance(f.x.get("names"), list):
+            allowed = True  # an access need stated by attendees is a requirement the venue must meet, not a decision
         if f.type == "expense" and str((f.x or {}).get("status", "committed")).lower() != "requested" and dom not in DOMAINS.get(role, set()):
             convert = "claimed approval from a role that cannot approve spending"
         elif existing and RANK.get(role, 0) < RANK.get(existing.role, 0):

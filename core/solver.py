@@ -92,9 +92,33 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
     committed = [e for e in expenses if str(e.x.get("status", "committed")).lower() != "requested"]
     requested = [e for e in expenses if str(e.x.get("status", "")).lower() == "requested"]
     constraints, unsupported = [], []
-    stated = " ".join(str(ft).lower() for v in venues for ft in (v.x.get("features") or []))
-    feature_words = sorted({str(ft).lower() for v in venues for ft in (v.x.get("features") or [])})
+    # A statement that names venues and a feature they offer (x.names) adds that feature to those options.
+    offered: dict[str, list[str]] = {}
+    for c in fs:
+        if c.type == "constraint" and c.x.get("metric") == "venue.features" and isinstance(c.x.get("names"), list):
+            for nm in c.x["names"]:
+                offered.setdefault(str(nm).lower(), []).append(str(primary(c)))
+
+    # The reader can word one feature two ways (the need in one message, the offer in another). When exactly one need
+    # and one offer are left unmatched, they are taken to be the same feature, so the offer is stored under the need's wording.
+    needs = {str(primary(c)).lower() for c in fs if c.type == "constraint" and c.x.get("metric") == "venue.features"
+             and not isinstance(c.x.get("names"), list) and (c.x.get("op") or "") in ("includes", "==")}
+    own_words = {str(ft).lower() for v in venues for ft in (v.x.get("features") or [])}
+    loose_needs = [w for w in needs if w not in own_words and not any(w == o.lower() for fl in offered.values() for o in fl)]
+    loose_offers = sorted({o for fl in offered.values() for o in fl if o.lower() not in needs})
+    if len(loose_needs) == 1 and len(loose_offers) == 1:
+        offered = {nm: [loose_needs[0] if o == loose_offers[0] else o for o in fl] for nm, fl in offered.items()}
+
+    def feats(v) -> list[str]:
+        own = [str(ft) for ft in (v.x.get("features") or [])]
+        name = str(v.x.get("name") or v.key).lower()
+        return own + [ft for nm, fl in offered.items() if nm == name or nm in name or name in nm for ft in fl]
+
+    stated = " ".join(ft.lower() for v in venues for ft in feats(v))
+    feature_words = sorted({ft.lower() for v in venues for ft in feats(v)})
     for c in (f for f in fs if f.type == "constraint"):
+        if c.x.get("metric") == "venue.features" and isinstance(c.x.get("names"), list):
+            continue  # an offer, not a requirement
         m = str(c.x.get("metric") or "")
         if m.startswith("venue.") and (m not in METRICS or (m == "venue.features" and str(primary(c)).lower() not in stated)):
             # The reader may name a feature requirement differently (for example venue.accessibility). If the quote
@@ -129,6 +153,10 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
                 f_cost, per_head = price * qty, price
             else:
                 f_cost, per_head = price, (price / qty if qty else None)
+            pct = num("food.surcharge_pct", 0)  # a percentage the food vendor adds on top of the food bill
+            if pct:
+                f_cost = f_cost * (100 + pct) / 100
+                f_cost = int(f_cost) if f_cost == int(f_cost) else round(f_cost, 2)
             if qty < people and "meals" not in disabled:
                 fails.append(("meals", f"{qty} meals for {people} people on site"))
         if teams and max_teams and j and math.ceil(teams / j) > max_teams and "judge_cap" not in disabled:
@@ -182,7 +210,7 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
             fails.append(("budget", f"total {lines_total} exceeds the cap of {cap}"))
         metrics = {
             "people.total": people, "venue.capacity": cap_v, "venue.cost": v_cost if v is not None else None,
-            "venue.features": list(v.x.get("features") or []) if v is not None else None,
+            "venue.features": feats(v) if v is not None else None,
             "venue.name": (v.x.get("name") or v.key) if v is not None else None,
             "food.per_head": per_head, "food.cost": f_cost if fd is not None else None,
             "food.qty": qty if fd is not None else None, "judges.used": j,
@@ -258,7 +286,7 @@ def solve(facts, disabled=frozenset(), overrides=None) -> dict:
     plan = {
         "feasible": True,
         "venue": ({"name": v.x.get("name") or v.key, "capacity": c["cap_v"], "cost": c["v_cost"],
-                   "basis": v.x.get("basis", "flat"), "features": v.x.get("features") or [], "sources": [v.id]}
+                   "basis": v.x.get("basis", "flat"), "features": feats(v), "sources": [v.id]}
                   if v is not None else None),
         "people": {"students": students, "staff": staff, "judges": j, "other": extra, "total": c["people"],
                    "teams": teams, "sources": people_src},

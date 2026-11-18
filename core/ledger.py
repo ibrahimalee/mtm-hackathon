@@ -22,7 +22,11 @@ def identity(f: Fact):
     if f.type == "block":
         return ("block", norm(x.get("name") or f.key))
     if f.type == "constraint":
-        return ("constraint", x.get("metric") or f.key, x.get("op") or "")
+        op = x.get("op") or ""
+        # Membership constraints (includes, excludes, !=) each state a separate thing; limits replace each other.
+        member = (norm(x.get("value")), tuple(sorted(norm(n) for n in x["names"]))) if op in ("includes", "excludes", "!=") and isinstance(x.get("names"), list) \
+            else (norm(x.get("value")), ()) if op in ("includes", "excludes", "!=") else ("", ())
+        return ("constraint", x.get("metric") or f.key, op) + member
     return None
 
 

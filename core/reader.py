@@ -18,7 +18,7 @@ FACT_SPEC = (
     'u=unit; q=REQUIRED exact verbatim quote holding the numbers; x=extra; up=id of an earlier fact this updates; '
     'cx=id of an earlier fact this contradicts.\n'
     'param keys: people.students people.staff team.size event.minutes(total, convert hours) event.start budget.cap '
-    'judges.available judge.minutes_per_team judge.max_teams(teams one judge may cover) judge.fee(per judge) food.qty; '
+    'judges.available judge.minutes_per_team judge.max_teams(teams one judge may cover) judge.fee(per judge) food.qty food.surcharge_pct(percent a food vendor adds to its bill); '
     'any numeric limit on one of these keys is that param, not a constraint; unknown keys allowed.\n'
     'option x:{category:venue|food|other,name,price,basis:flat|per_head,capacity,features:[],tier:default|standard|basic|premium}\n'
     'expense x:{item,amount,status:committed if already ordered, paid or approved; requested if only asked or proposed}\n'
@@ -27,6 +27,7 @@ FACT_SPEC = (
     'venue.features venue.name food.per_head food.cost food.qty judges.used judging.teams_per_judge judging.window_minutes '
     'schedule.total_minutes schedule.blocks schedule.end budget.total budget.remaining, else "unsupported".\n'
     'A requirement or prohibition with no number is still a constraint (op includes or excludes). request: asked for, not decided. For a stated total add x.parts=[component numbers]. '
+    'A venue that cannot be booked: constraint metric venue.name op != value that venue name. Venues that offer a feature: constraint metric venue.features op includes, value the feature in one short wording, x.names=[those venue names]; a requirement for that feature uses the same wording, so when one message needs a feature and another says which venues have it, copy the needing message wording into the offer value. '
     'Convert lakh/k to full numbers. Never invent; quotes must be verbatim. '
     'A number giving a duration, count, price or limit is always a fact; ign is only for clock times, list or page numbers and small talk.'
 )

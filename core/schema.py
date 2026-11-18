@@ -21,7 +21,7 @@ FACT_TYPES = ["param", "option", "expense", "block", "constraint", "request"]
 PARAM_KEYS = [
     "people.students", "people.staff", "team.size", "event.minutes", "event.start",
     "budget.cap", "judges.available", "judge.minutes_per_team", "judge.max_teams", "judge.fee",
-    "food.qty",
+    "food.qty", "food.surcharge_pct",
 ]
 
 METRICS = [
